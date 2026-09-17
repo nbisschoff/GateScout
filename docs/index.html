@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GateScout — EVE Online Situational Awareness Overlay</title>
+  <meta name="description" content="Real-time kills, jump traffic, and gate camp detection for neighbouring systems. Free Windows overlay for EVE Online." />
+  <link rel="icon" type="image/x-icon" href="../assets/icon.ico" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #07070f;
+      --bg2:      #0d0d1a;
+      --bg3:      #111122;
+      --border:   #1e1e3a;
+      --accent:   #4fc3f7;
+      --accent2:  #0288d1;
+      --gold:     #ffd700;
+      --red:      #f44336;
+      --text:     #c8c8d8;
+      --dim:      #666688;
+      --white:    #eeeeff;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 5%;
+      height: 60px;
+      background: rgba(7, 7, 15, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-logo {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.1rem;
+      color: var(--accent);
+      text-decoration: none;
+      letter-spacing: 2px;
+    }
+    .nav-links { display: flex; gap: 2rem; align-items: center; }
+    .nav-links a {
+      color: var(--dim); text-decoration: none; font-size: 0.875rem;
+      font-weight: 500; transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--accent); }
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.6rem 1.4rem; border-radius: 6px;
+      font-weight: 600; font-size: 0.875rem; text-decoration: none;
+      transition: all 0.2s; cursor: pointer; border: none;
+    }
+    .btn-primary {
+      background: var(--accent); color: #07070f;
+    }
+    .btn-primary:hover { background: #81d4fa; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(79,195,247,0.4); }
+    .btn-outline {
+      border: 1px solid var(--accent); color: var(--accent); background: transparent;
+    }
+    .btn-outline:hover { background: rgba(79,195,247,0.08); }
+    .btn-gold {
+      background: var(--gold); color: #1a1000;
+    }
+    .btn-gold:hover { background: #ffe033; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(255,215,0,0.35); }
+
+    /* ── HERO ── */
+    .hero {
+      min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center;
+      padding: 100px 5% 60px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 80% 60% at 50% 40%, rgba(79,195,247,0.07) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-badge {
+      display: inline-block;
+      background: rgba(79,195,247,0.1);
+      border: 1px solid rgba(79,195,247,0.3);
+      color: var(--accent);
+      font-size: 0.75rem; font-weight: 600; letter-spacing: 2px;
+      padding: 0.3rem 1rem; border-radius: 100px;
+      margin-bottom: 1.5rem; text-transform: uppercase;
+    }
+    .hero h1 {
+      font-family: 'Orbitron', sans-serif;
+      font-size: clamp(2.5rem, 7vw, 5rem);
+      font-weight: 800;
+      color: var(--white);
+      letter-spacing: 3px;
+      line-height: 1.1;
+      margin-bottom: 1rem;
+    }
+    .hero h1 span { color: var(--accent); }
+    .hero p {
+      font-size: clamp(1rem, 2.5vw, 1.25rem);
+      color: var(--dim);
+      max-width: 600px;
+      margin: 0 auto 2.5rem;
+      font-weight: 300;
+    }
+    .hero-cta { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+    .hero-img {
+      margin-top: 4rem;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      box-shadow: 0 0 60px rgba(79,195,247,0.1), 0 20px 60px rgba(0,0,0,0.6);
+      max-width: 420px;
+      width: 90%;
+    }
+    .hero-stats {
+      display: flex; gap: 3rem; justify-content: center; flex-wrap: wrap;
+      margin-top: 3rem;
+    }
+    .hero-stat { text-align: center; }
+    .hero-stat .num {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.75rem; font-weight: 600;
+      color: var(--accent);
+    }
+    .hero-stat .label { font-size: 0.8rem; color: var(--dim); letter-spacing: 1px; text-transform: uppercase; }
+
+    /* ── SECTION SHARED ── */
+    section { padding: 5rem 5%; }
+    .section-tag {
+      font-size: 0.75rem; font-weight: 600; letter-spacing: 3px;
+      text-transform: uppercase; color: var(--accent);
+      margin-bottom: 0.75rem;
+    }
+    .section-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: clamp(1.5rem, 4vw, 2.25rem);
+      color: var(--white); margin-bottom: 1rem;
+    }
+    .section-sub { color: var(--dim); max-width: 520px; font-size: 0.95rem; }
+    .section-header { margin-bottom: 3rem; }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 0; }
+
+    /* ── FEATURES ── */
+    #features { background: var(--bg2); }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.5rem;
+      margin-top: 3rem;
+    }
+    .feature-card {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.75rem;
+      transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
+    }
+    .feature-card:hover {
+      border-color: rgba(79,195,247,0.4);
+      transform: translateY(-3px);
+      box-shadow: 0 8px 30px rgba(79,195,247,0.08);
+    }
+    .feature-icon { font-size: 1.75rem; margin-bottom: 1rem; }
+    .feature-card h3 { color: var(--white); font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem; }
+    .feature-card p { color: var(--dim); font-size: 0.875rem; line-height: 1.6; }
+
+    /* ── SCREENSHOTS ── */
+    #screenshots { background: var(--bg); }
+    .screenshots-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.25rem;
+      margin-top: 3rem;
+    }
+    .screenshot-card {
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: var(--bg3);
+      transition: transform 0.25s, box-shadow 0.25s;
+    }
+    .screenshot-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+    }
+    .screenshot-card img { width: 100%; display: block; }
+    .screenshot-card span {
+      display: block; padding: 0.6rem 1rem;
+      font-size: 0.8rem; color: var(--dim); letter-spacing: 1px;
+      text-transform: uppercase; border-top: 1px solid var(--border);
+    }
+
+    /* ── HOW IT WORKS ── */
+    #how { background: var(--bg2); }
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 2rem;
+      margin-top: 3rem;
+    }
+    .step { text-align: center; }
+    .step-num {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      background: rgba(79,195,247,0.1);
+      border: 1px solid rgba(79,195,247,0.3);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.1rem; color: var(--accent);
+      margin: 0 auto 1rem;
+    }
+    .step h3 { color: var(--white); font-size: 0.95rem; margin-bottom: 0.5rem; }
+    .step p { color: var(--dim); font-size: 0.85rem; }
+
+    /* ── KILL COLOURS ── */
+    #intel { background: var(--bg); }
+    .colours {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .colour-card {
+      border-radius: 8px;
+      padding: 1.25rem;
+      border: 1px solid var(--border);
+      background: var(--bg3);
+      display: flex; align-items: center; gap: 0.875rem;
+    }
+    .dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+    .colour-card h4 { color: var(--white); font-size: 0.875rem; margin-bottom: 0.15rem; }
+    .colour-card p { color: var(--dim); font-size: 0.775rem; }
+
+    /* ── DONATE ── */
+    #donate {
+      background: var(--bg2);
+      text-align: center;
+    }
+    .donate-box {
+      max-width: 560px;
+      margin: 2rem auto 0;
+      background: var(--bg3);
+      border: 1px solid rgba(255,215,0,0.2);
+      border-radius: 12px;
+      padding: 2.5rem;
+      box-shadow: 0 0 40px rgba(255,215,0,0.05);
+    }
+    .donate-box p { color: var(--dim); margin-bottom: 1.5rem; font-size: 0.95rem; }
+    .pilot-name {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.25rem;
+      color: var(--gold);
+      margin-bottom: 0.5rem;
+    }
+    .donate-note { font-size: 0.8rem; color: var(--dim); margin-top: 1rem; }
+
+    /* ── FOOTER ── */
+    footer {
+      background: var(--bg);
+      border-top: 1px solid var(--border);
+      padding: 2.5rem 5%;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 1rem;
+      font-size: 0.8rem; color: var(--dim);
+    }
+    footer a { color: var(--dim); text-decoration: none; transition: color 0.2s; }
+    footer a:hover { color: var(--accent); }
+    .footer-links { display: flex; gap: 1.5rem; }
+
+    /* ── MOBILE ── */
+    @media (max-width: 640px) {
+      .nav-links { display: none; }
+      .hero-stats { gap: 1.5rem; }
+      .steps { grid-template-columns: 1fr; }
+      footer { flex-direction: column; text-align: center; }
+      .footer-links { justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-logo" href="#">GATESCOUT</a>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#screenshots">Screenshots</a>
+    <a href="#how">Install</a>
+    <a href="#donate">Donate</a>
+    <a class="btn btn-primary" href="https://github.com/nbisschoff/GateScout/releases/latest">⬇ Download</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-badge">EVE Online Overlay · Windows · Free</div>
+  <h1>Know Before<br/>You <span>Jump.</span></h1>
+  <p>Real-time kills, jump traffic, and gate camp detection for every system reachable in one jump — displayed in a sleek always-on-top overlay.</p>
+  <div class="hero-cta">
+    <a class="btn btn-primary" href="https://github.com/nbisschoff/GateScout/releases/latest">⬇ Download v1.0.0</a>
+    <a class="btn btn-outline" href="https://github.com/nbisschoff/GateScout" target="_blank">View on GitHub</a>
+  </div>
+  <img class="hero-img" src="../assets/Main Screen.png" alt="GateScout main overlay" />
+  <div class="hero-stats">
+    <div class="hero-stat"><div class="num">5s</div><div class="label">Location refresh</div></div>
+    <div class="hero-stat"><div class="num">30s</div><div class="label">Kill data refresh</div></div>
+    <div class="hero-stat"><div class="num">1</div><div class="label">Jump ahead</div></div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="section-header">
+    <div class="section-tag">What it does</div>
+    <h2 class="section-title">Everything you need.<br/>Nothing you don't.</h2>
+    <p class="section-sub">GateScout pulls live data from CCP's ESI API and zKillboard and puts it exactly where you need it.</p>
+  </div>
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon">💀</div>
+      <h3>Live Kill Tracking</h3>
+      <p>Ships and pods destroyed in the last hour, per system. Updated every 30 seconds so you're never flying blind.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🚀</div>
+      <h3>Jump Traffic</h3>
+      <p>Real-time jump counts show you how busy each gate is. High traffic means more eyes on the gate.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📍</div>
+      <h3>Gate Proximity</h3>
+      <p>Kills are classified as near a specific stargate or deep space — spot gate camps before you land in one.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔔</div>
+      <h3>Sound Alerts</h3>
+      <p>Audio beep the moment new kills appear in a neighbouring system between refreshes. Mute with one click.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔍</div>
+      <h3>Kill Summaries</h3>
+      <p>Click any kill to see the full breakdown — victim, corp, ISK value, final blow attacker, and fleet composition.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🪟</div>
+      <h3>Non-Intrusive Overlay</h3>
+      <p>Frameless, transparent, always-on-top. Drag it anywhere, resize it, or collapse it to a single bar.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- SCREENSHOTS -->
+<section id="screenshots">
+  <div class="section-header">
+    <div class="section-tag">Screenshots</div>
+    <h2 class="section-title">See it in action.</h2>
+  </div>
+  <div class="screenshots-grid">
+    <div class="screenshot-card">
+      <img src="../assets/Main Screen.png" alt="Main overlay" />
+      <span>Main Overlay</span>
+    </div>
+    <div class="screenshot-card">
+      <img src="../assets/System Kills.png" alt="Kill list" />
+      <span>Kill List</span>
+    </div>
+    <div class="screenshot-card">
+      <img src="../assets/Kill Details.png" alt="Kill details" />
+      <span>Kill Details</span>
+    </div>
+    <div class="screenshot-card">
+      <img src="../assets/Help Screen.png" alt="Help window" />
+      <span>Help Guide</span>
+    </div>
+    <div class="screenshot-card">
+      <img src="../assets/About.png" alt="About window" />
+      <span>About</span>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- HOW IT WORKS -->
+<section id="how">
+  <div class="section-header">
+    <div class="section-tag">Getting started</div>
+    <h2 class="section-title">Up and running in minutes.</h2>
+    <p class="section-sub">No Python. No command line. Just download, install, and log in.</p>
+  </div>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">01</div>
+      <h3>Download</h3>
+      <p>Grab the installer from the Releases page. One file, no admin rights needed.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">02</div>
+      <h3>Install</h3>
+      <p>Run the installer. Next → Install → Finish. GateScout appears in your Start Menu.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">03</div>
+      <h3>Login</h3>
+      <p>Click Login, authenticate with your EVE account in the browser, and you're live.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">04</div>
+      <h3>Fly safe</h3>
+      <p>Jump in-game. GateScout detects your system and shows live intel on your neighbours.</p>
+    </div>
+  </div>
+  <div style="text-align:center; margin-top:3rem;">
+    <a class="btn btn-primary" href="https://github.com/nbisschoff/GateScout/releases/latest">⬇ Download Free</a>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- INTEL COLOURS -->
+<section id="intel">
+  <div class="section-header">
+    <div class="section-tag">Reading the overlay</div>
+    <h2 class="section-title">Colour-coded threat levels.</h2>
+    <p class="section-sub">Kill counts are colour-coded so you know the threat level at a glance — no numbers needed.</p>
+  </div>
+  <div class="colours">
+    <div class="colour-card">
+      <div class="dot" style="background:#4caf50;"></div>
+      <div><h4>Green — Clear</h4><p>0 kills in the last hour</p></div>
+    </div>
+    <div class="colour-card">
+      <div class="dot" style="background:#ffc107;"></div>
+      <div><h4>Yellow — Caution</h4><p>1–2 kills detected</p></div>
+    </div>
+    <div class="colour-card">
+      <div class="dot" style="background:#ff9800;"></div>
+      <div><h4>Orange — Warning</h4><p>3–4 kills, hostile activity likely</p></div>
+    </div>
+    <div class="colour-card">
+      <div class="dot" style="background:#f44336;"></div>
+      <div><h4>Red — Danger</h4><p>5+ kills, find another route</p></div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- DONATE -->
+<section id="donate">
+  <div class="section-tag">Support the project</div>
+  <h2 class="section-title">GateScout saved your ship?</h2>
+  <div class="donate-box">
+    <p>GateScout is completely free. If it has kept your ship — or your pod — in one piece, consider sending a small ISK donation in-game. It keeps the project alive and the gates scouted.</p>
+    <div class="pilot-name">Draven Ezekiel</div>
+    <p style="font-size:0.85rem; color:#888899; margin-bottom:1.5rem;">Right-click name in-game → Give Money</p>
+    <a class="btn btn-gold" href="https://github.com/nbisschoff/GateScout/releases/latest">⬇ Download GateScout Free</a>
+    <p class="donate-note">Every ISK goes toward keeping this project maintained. o7</p>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div>
+    <strong style="color:var(--accent); font-family:'Orbitron',sans-serif; letter-spacing:2px; font-size:0.85rem;">GATESCOUT</strong><br/>
+    Created by Draven Ezekiel · Not affiliated with CCP Games.<br/>
+    EVE Online is the property of CCP hf.
+  </div>
+  <div class="footer-links">
+    <a href="https://github.com/nbisschoff/GateScout" target="_blank">GitHub</a>
+    <a href="https://github.com/nbisschoff/GateScout/releases" target="_blank">Releases</a>
+    <a href="https://github.com/nbisschoff/GateScout/issues" target="_blank">Report a Bug</a>
+  </div>
+</footer>
+
+</body>
+</html>
