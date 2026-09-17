@@ -60,9 +60,13 @@ class Overlay(QMainWindow):
         self._current_system_name = ""
         self._current_system_id = None
         self._current_kills_count = 0
-        self._help_window = None
-        self._muted = False
-        self._about_window = None
+        self._help_window     = None
+        self._muted           = False
+        self._about_window    = None
+        self._settings_window = None
+
+        import settings_manager
+        self._settings = settings_manager.load()
 
         self.setWindowTitle("GateScout")
         self.setWindowFlags(
@@ -73,6 +77,7 @@ class Overlay(QMainWindow):
         self.resize(340, 260)
 
         self._build_ui()
+        self.setWindowOpacity(self._settings["opacity"])
 
     def _build_ui(self):
         root = QWidget()
@@ -141,6 +146,13 @@ class Overlay(QMainWindow):
         self._mute_btn.setToolTip("Mute / unmute sound alerts")
         self._mute_btn.clicked.connect(self._toggle_mute)
         tb_layout.addWidget(self._mute_btn)
+
+        settings_btn = QPushButton("⚙")
+        settings_btn.setFixedSize(20, 20)
+        settings_btn.setStyleSheet(_icon_style.format(c="#666", h="#4fc3f7"))
+        settings_btn.setToolTip("Settings")
+        settings_btn.clicked.connect(self._show_settings)
+        tb_layout.addWidget(settings_btn)
 
         info_btn = QPushButton("ⓘ")
         info_btn.setFixedSize(20, 20)
@@ -393,6 +405,34 @@ class Overlay(QMainWindow):
         row_h = self._table.rowHeight(0) if rows else 24
         h = min(420, max(180, 110 + len(rows) * row_h)) if rows else 180
         self.resize(340, h)
+
+    def _show_settings(self):
+        if self._settings_window and self._settings_window.isVisible():
+            self._settings_window.close()
+            return
+        from ui.settings_window import SettingsWindow
+        self._settings_window = SettingsWindow(
+            self.pos(),
+            self._settings["opacity"],
+            self._settings["sound"],
+        )
+        self._settings_window.opacity_changed.connect(self._apply_opacity)
+        self._settings_window.sound_changed.connect(self._apply_sound)
+        self._settings_window.show()
+
+    def _apply_opacity(self, value: float):
+        self._settings["opacity"] = value
+        self.setWindowOpacity(value)
+        import settings_manager
+        settings_manager.save(self._settings)
+
+    def _apply_sound(self, name: str):
+        self._settings["sound"] = name
+        import settings_manager
+        settings_manager.save(self._settings)
+
+    def get_sound(self) -> str:
+        return self._settings.get("sound", "Double beep")
 
     def _show_about(self):
         if self._about_window and self._about_window.isVisible():
