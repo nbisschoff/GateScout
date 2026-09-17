@@ -133,7 +133,7 @@ def _check_for_update(overlay):
             current = tuple(int(x) for x in VERSION.split("."))
             latest  = tuple(int(x) for x in tag.split("."))
             if latest > current:
-                overlay.show_update_available(tag)
+                overlay._update_ready.emit(tag)
         except Exception:
             pass
     threading.Thread(target=_run, daemon=True).start()

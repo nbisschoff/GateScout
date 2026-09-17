@@ -49,7 +49,8 @@ class _ClickableLabel(QLabel):
 
 
 class Overlay(QMainWindow):
-    system_clicked = pyqtSignal(str, int, int)   # system_name, system_id, kills
+    system_clicked  = pyqtSignal(str, int, int)   # system_name, system_id, kills
+    _update_ready   = pyqtSignal(str)             # emitted from bg thread, handled on main thread
 
     def __init__(self, on_login, on_logout):
         super().__init__()
@@ -78,6 +79,7 @@ class Overlay(QMainWindow):
 
         self._build_ui()
         self.setWindowOpacity(self._settings["opacity"])
+        self._update_ready.connect(self.show_update_available)
 
     def _build_ui(self):
         root = QWidget()
