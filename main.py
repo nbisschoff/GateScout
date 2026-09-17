@@ -113,6 +113,32 @@ class DataWorker(QObject):
         self.status_updated.emit(f"updated {now}")
 
 
+def _check_for_update(overlay):
+    """Background thread: compares current version against latest GitHub release."""
+    import threading
+    def _run():
+        try:
+            import requests
+            from version import VERSION
+            r = requests.get(
+                "https://api.github.com/repos/nbisschoff/GateScout/releases/latest",
+                headers={"Accept": "application/vnd.github+json"},
+                timeout=8,
+            )
+            if not r.ok:
+                return
+            tag = r.json().get("tag_name", "").lstrip("v")
+            if not tag:
+                return
+            current = tuple(int(x) for x in VERSION.split("."))
+            latest  = tuple(int(x) for x in tag.split("."))
+            if latest > current:
+                overlay.show_update_available(tag)
+        except Exception:
+            pass
+    threading.Thread(target=_run, daemon=True).start()
+
+
 def _safe_system_name(system_id: int) -> str:
     try:
         names = get_names_bulk([system_id])
@@ -138,6 +164,7 @@ class GateScout:
 
     def run(self):
         self._overlay.show()
+        _check_for_update(self._overlay)
 
         # Auto-login if we have saved tokens
         char_id, char_name = get_saved_character()

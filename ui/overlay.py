@@ -115,6 +115,15 @@ class Overlay(QMainWindow):
         tb_layout.addWidget(self._title_label)
         tb_layout.addStretch()
 
+        self._update_btn = QPushButton()
+        self._update_btn.setStyleSheet(
+            "QPushButton { border: none; color: #ffd700; font-size: 10px; padding: 0 4px; }"
+            "QPushButton:hover { color: #ffe066; text-decoration: underline; }"
+        )
+        self._update_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._update_btn.hide()
+        tb_layout.addWidget(self._update_btn)
+
         self._login_btn = QPushButton("Login")
         self._login_btn.clicked.connect(self._on_login)
         tb_layout.addWidget(self._login_btn)
@@ -236,6 +245,14 @@ class Overlay(QMainWindow):
         self._grip.raise_()
 
     # ── public update methods ───────────────────────────────────────
+
+    def show_update_available(self, version: str):
+        import webbrowser
+        self._update_btn.setText(f"↓ v{version} available")
+        self._update_btn.clicked.connect(
+            lambda: webbrowser.open("https://github.com/nbisschoff/GateScout/releases/latest")
+        )
+        self._update_btn.show()
 
     def set_current_system(self, name: str, system_id: int = None):
         self._current_system_name = name
