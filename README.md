@@ -27,7 +27,20 @@ When you're flying through New Eden, the biggest risk is what you *don't* know. 
 
 ## Screenshots
 
-*Coming soon*
+### Main Overlay
+![Main overlay showing current system and neighbouring systems with kill and jump data](assets/Main%20Screen.png)
+
+### Kill List
+![Kill list popup showing ships destroyed, attacker, time, and gate proximity](assets/System%20Kills.png)
+
+### Kill Details
+![Kill detail summary showing victim info, ISK value, final blow, and fleet breakdown](assets/Kill%20Details.png)
+
+### Help
+![Help window with full feature guide](assets/Help%20Screen.png)
+
+### About
+![About window showing version and donation info](assets/About.png)
 
 ---
 
