@@ -1,5 +1,5 @@
 """
-Settings window — transparency slider and alert sound picker.
+Settings window — transparency slider, volume slider, and alert sound picker.
 """
 
 from PyQt6.QtWidgets import (
@@ -16,16 +16,33 @@ TEXT      = "#c8c8d8"
 ACCENT    = "#4fc3f7"
 DIM       = "#555577"
 
+_SLIDER_STYLE = f"""
+    QSlider::groove:horizontal {{
+        height: 4px; background: {BORDER}; border-radius: 2px;
+    }}
+    QSlider::sub-page:horizontal {{
+        background: {ACCENT}; border-radius: 2px;
+    }}
+    QSlider::handle:horizontal {{
+        width: 14px; height: 14px; margin: -5px 0;
+        background: {ACCENT}; border-radius: 7px;
+    }}
+"""
+
 
 class SettingsWindow(QWidget):
-    opacity_changed = pyqtSignal(float)   # 0.0 – 1.0
-    sound_changed   = pyqtSignal(str)     # sound name
+    opacity_changed = pyqtSignal(float)
+    sound_changed   = pyqtSignal(str)
+    volume_changed  = pyqtSignal(float)
+    save_requested  = pyqtSignal(float, str, float)  # opacity, sound, volume
 
-    def __init__(self, parent_pos: QPoint, current_opacity: float, current_sound: str):
+    def __init__(self, parent_pos: QPoint, current_opacity: float,
+                 current_sound: str, current_volume: float):
         super().__init__()
-        self._drag_pos = QPoint()
+        self._drag_pos       = QPoint()
         self._current_opacity = current_opacity
         self._current_sound   = current_sound
+        self._current_volume  = current_volume
 
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint |
@@ -83,48 +100,36 @@ class SettingsWindow(QWidget):
         body = QWidget()
         body_layout = QVBoxLayout(body)
         body_layout.setContentsMargins(16, 14, 16, 16)
-        body_layout.setSpacing(16)
+        body_layout.setSpacing(14)
 
-        # ── opacity section ──
-        op_header = QLabel("OVERLAY TRANSPARENCY")
-        op_header.setStyleSheet(f"color: {DIM}; font-size: 10px; letter-spacing: 1px;")
-        body_layout.addWidget(op_header)
+        # ── overlay transparency ──
+        body_layout.addWidget(self._section_label("OVERLAY TRANSPARENCY"))
+        self._opacity_slider, op_row = self._slider_row(
+            minimum=30, maximum=100,
+            value=int(self._current_opacity * 100),
+            fmt=lambda v: f"{v}%",
+            on_change=self._on_opacity_changed,
+            attr="_opacity_lbl",
+        )
+        body_layout.addLayout(op_row)
 
-        slider_row = QHBoxLayout()
-        self._slider = QSlider(Qt.Orientation.Horizontal)
-        self._slider.setMinimum(30)
-        self._slider.setMaximum(100)
-        self._slider.setValue(int(self._current_opacity * 100))
-        self._slider.setStyleSheet(f"""
-            QSlider::groove:horizontal {{
-                height: 4px; background: {BORDER}; border-radius: 2px;
-            }}
-            QSlider::sub-page:horizontal {{
-                background: {ACCENT}; border-radius: 2px;
-            }}
-            QSlider::handle:horizontal {{
-                width: 14px; height: 14px; margin: -5px 0;
-                background: {ACCENT}; border-radius: 7px;
-            }}
-        """)
-        self._op_lbl = QLabel(f"{int(self._current_opacity * 100)}%")
-        self._op_lbl.setFixedWidth(36)
-        self._op_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self._slider.valueChanged.connect(self._on_opacity_changed)
-        slider_row.addWidget(self._slider)
-        slider_row.addWidget(self._op_lbl)
-        body_layout.addLayout(slider_row)
+        body_layout.addWidget(self._divider())
 
-        # ── divider ──
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setStyleSheet(f"color: {BORDER};")
-        body_layout.addWidget(line)
+        # ── alert volume ──
+        body_layout.addWidget(self._section_label("ALERT VOLUME"))
+        self._volume_slider, vol_row = self._slider_row(
+            minimum=0, maximum=100,
+            value=int(self._current_volume * 100),
+            fmt=lambda v: f"{v}%",
+            on_change=self._on_volume_changed,
+            attr="_volume_lbl",
+        )
+        body_layout.addLayout(vol_row)
 
-        # ── sound section ──
-        snd_header = QLabel("ALERT SOUND")
-        snd_header.setStyleSheet(f"color: {DIM}; font-size: 10px; letter-spacing: 1px;")
-        body_layout.addWidget(snd_header)
+        body_layout.addWidget(self._divider())
+
+        # ── alert sound ──
+        body_layout.addWidget(self._section_label("ALERT SOUND"))
 
         self._sound_group = QButtonGroup(self)
         for name in SOUNDS:
@@ -153,23 +158,94 @@ class SettingsWindow(QWidget):
 
         layout.addWidget(body)
 
+        # ── save button ──
+        footer = QWidget()
+        footer.setStyleSheet(f"background: {HEADER_BG}; border-radius: 0 0 8px 8px;")
+        ft = QHBoxLayout(footer)
+        ft.setContentsMargins(16, 8, 16, 10)
+        ft.addStretch()
+        save_btn = QPushButton("Save settings")
+        save_btn.setFixedWidth(160)
+        save_btn.setFixedHeight(28)
+        save_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {ACCENT}; color: #07070f;
+                border: none; border-radius: 5px;
+                font-size: 12px; font-weight: 600; padding: 0 18px;
+            }}
+            QPushButton:hover {{ background: #81d4fa; }}
+        """)
+        save_btn.clicked.connect(self._on_save)
+        ft.addWidget(save_btn)
+        ft.addStretch()
+        layout.addWidget(footer)
+
         self._grip = QSizeGrip(self)
         self._grip.setFixedSize(14, 14)
         self._grip.setStyleSheet("QSizeGrip { background: transparent; }")
         self._grip.raise_()
         self.adjustSize()
 
+    # ── helpers ────────────────────────────────────────────────────
+
+    def _section_label(self, text: str) -> QLabel:
+        lbl = QLabel(text)
+        lbl.setStyleSheet(f"color: {DIM}; font-size: 10px; letter-spacing: 1px;")
+        return lbl
+
+    def _divider(self) -> QFrame:
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setStyleSheet(f"color: {BORDER};")
+        return line
+
+    def _slider_row(self, minimum, maximum, value, fmt, on_change, attr):
+        slider = QSlider(Qt.Orientation.Horizontal)
+        slider.setMinimum(minimum)
+        slider.setMaximum(maximum)
+        slider.setValue(value)
+        slider.setStyleSheet(_SLIDER_STYLE)
+
+        val_lbl = QLabel(fmt(value))
+        val_lbl.setFixedWidth(36)
+        val_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        setattr(self, attr, val_lbl)
+
+        slider.valueChanged.connect(lambda v: (val_lbl.setText(fmt(v)), on_change(v)))
+
+        row = QHBoxLayout()
+        row.addWidget(slider)
+        row.addWidget(val_lbl)
+        return slider, row
+
+    # ── signal handlers ─────────────────────────────────────────────
+
     def _on_opacity_changed(self, value: int):
-        self._op_lbl.setText(f"{value}%")
         self.opacity_changed.emit(value / 100)
+
+    def _on_volume_changed(self, value: int):
+        self._current_volume = value / 100
+        self.volume_changed.emit(self._current_volume)
 
     def _on_sound_changed(self, name: str):
         self._current_sound = name
         self.sound_changed.emit(name)
 
+    def _on_save(self):
+        checked = self._sound_group.checkedButton()
+        sound = checked.text() if checked else self._current_sound
+        self.save_requested.emit(
+            self._opacity_slider.value() / 100,
+            sound,
+            self._volume_slider.value() / 100,
+        )
+        self.close()
+
     def _preview(self, name: str):
         from settings_manager import play_sound
-        play_sound(name)
+        play_sound(name, self._current_volume)
+
+    # ── window boilerplate ──────────────────────────────────────────
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

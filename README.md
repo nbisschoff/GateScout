@@ -25,6 +25,22 @@ When you're flying through New Eden, the biggest risk is what you *don't* know. 
 
 ---
 
+## Changelog
+
+### v1.1.0
+- Added 6 selectable MP3 alert sounds with live preview
+- Added alert volume slider — adjust and preview without restarting
+- Added overlay transparency slider
+- All settings (sound, volume, transparency) now persist across restarts
+- Settings panel accessible via ⚙ button in the title bar
+
+*Thanks to Dex (u/Mission_Extension_28) on Reddit for suggesting the sound and volume improvements. o7*
+
+### v1.0.0
+- Initial release
+
+---
+
 ## Screenshots
 
 ### Main Overlay

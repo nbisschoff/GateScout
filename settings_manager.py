@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 
 _FILE = os.path.join(
@@ -8,18 +9,36 @@ _FILE = os.path.join(
 
 _DEFAULTS = {
     "opacity": 0.90,
-    "sound":   "double",
+    "sound":   "Alert 1",
+    "volume":  0.80,
 }
 
-# Each sound is a list of (frequency_hz, duration_ms) beeps played in sequence
 SOUNDS = {
-    "Single beep":   [(880, 220)],
-    "Double beep":   [(880, 130), (880, 180)],
-    "Rising tone":   [(600, 150), (880, 220)],
-    "Falling tone":  [(1000, 150), (660, 220)],
-    "Triple beep":   [(880, 90), (880, 90), (880, 160)],
-    "Alarm":         [(1100, 70), (800, 70), (1100, 70), (800, 120)],
+    "Alert 1": "assets/01.mp3",
+    "Alert 2": "assets/02.mp3",
+    "Alert 3": "assets/03.mp3",
+    "Alert 4": "assets/04.mp3",
+    "Alert 5": "assets/05.mp3",
+    "Alert 6": "assets/06.mp3",
 }
+
+_pygame_ready = False
+
+
+def _init_pygame():
+    global _pygame_ready
+    if not _pygame_ready:
+        try:
+            import pygame
+            pygame.mixer.init()
+            _pygame_ready = True
+        except Exception:
+            pass
+
+
+def _resolve(relative: str) -> str:
+    base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, relative)
 
 
 def load() -> dict:
@@ -36,17 +55,18 @@ def save(data: dict):
         json.dump(data, f, indent=2)
 
 
-def play_sound(name: str):
-    """Play the sound pattern for the given name. Safe to call from any thread."""
+def play_sound(name: str, volume: float = 0.80):
     import threading
-    pattern = SOUNDS.get(name, SOUNDS["Double beep"])
     def _run():
-        import time
         try:
-            import winsound
-            for freq, dur in pattern:
-                winsound.Beep(freq, dur)
-                time.sleep(0.04)
+            _init_pygame()
+            if not _pygame_ready:
+                return
+            import pygame
+            path = _resolve(SOUNDS.get(name, "assets/01.mp3"))
+            pygame.mixer.music.load(path)
+            pygame.mixer.music.set_volume(max(0.0, min(1.0, volume)))
+            pygame.mixer.music.play()
         except Exception:
             pass
     threading.Thread(target=_run, daemon=True).start()

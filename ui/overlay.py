@@ -415,24 +415,37 @@ class Overlay(QMainWindow):
             self.pos(),
             self._settings["opacity"],
             self._settings["sound"],
+            self._settings.get("volume", 0.80),
         )
         self._settings_window.opacity_changed.connect(self._apply_opacity)
         self._settings_window.sound_changed.connect(self._apply_sound)
+        self._settings_window.volume_changed.connect(self._apply_volume)
+        self._settings_window.save_requested.connect(self._on_save_settings)
         self._settings_window.show()
 
     def _apply_opacity(self, value: float):
         self._settings["opacity"] = value
         self.setWindowOpacity(value)
-        import settings_manager
-        settings_manager.save(self._settings)
 
     def _apply_sound(self, name: str):
         self._settings["sound"] = name
+
+    def _apply_volume(self, value: float):
+        self._settings["volume"] = value
+
+    def _on_save_settings(self, opacity: float, sound: str, volume: float):
+        self._settings["opacity"] = opacity
+        self._settings["sound"]   = sound
+        self._settings["volume"]  = volume
+        self.setWindowOpacity(opacity)
         import settings_manager
         settings_manager.save(self._settings)
 
     def get_sound(self) -> str:
-        return self._settings.get("sound", "Double beep")
+        return self._settings.get("sound", "Alert 1")
+
+    def get_volume(self) -> float:
+        return self._settings.get("volume", 0.80)
 
     def _show_about(self):
         if self._about_window and self._about_window.isVisible():

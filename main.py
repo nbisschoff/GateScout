@@ -194,7 +194,7 @@ class GateScout:
     def _play_alert(self):
         if not self._overlay.is_muted():
             from settings_manager import play_sound
-            play_sound(self._overlay.get_sound())
+            play_sound(self._overlay.get_sound(), self._overlay.get_volume())
 
     def _open_detail(self, system_name: str, system_id: int, _kills: int):
         if self._detail_window:
