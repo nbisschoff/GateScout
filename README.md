@@ -6,13 +6,13 @@
 
 ## What is GateScout?
 
-GateScout is a lightweight Windows overlay that sits on top of EVE Online and gives you live intelligence on every system reachable in a single jump from your current location.
+GateScout is a lightweight Windows overlay that sits on top of EVE Online and gives you intelligence on every system reachable in a single jump from your current location.
 
-When you're flying through New Eden, the biggest risk is what you *don't* know. GateScout pulls live data from CCP's ESI API and zKillboard to show you kills per hour and jump traffic for all neighbouring systems — so you can make informed decisions before you commit to a gate.
+When you're flying through New Eden, the biggest risk is what you *don't* know. GateScout pulls data from CCP's ESI API and zKillboard to show you kills per hour and jump traffic for all neighbouring systems — so you can make informed decisions before you commit to a gate. (Data is based on past 1 hours activity)
 
 ### Features
 
-- **Live kill tracking** — ships and pods destroyed in the last hour, per system
+- **Kill tracking** — ships and pods destroyed in the last hour, per system
 - **Jump traffic** — how busy each gate is right now
 - **Security status** — colour-coded high/low/null at a glance
 - **Kill details** — click any system to see exactly what was destroyed, where, and by whom
