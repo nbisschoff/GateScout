@@ -1,6 +1,6 @@
 # GateScout
 
-> Real-time situational awareness for EVE Online — know what's waiting on the other side of the gate.
+> Situational awareness for EVE Online — know what's waiting on the other side of the gate.
 
 ---
 
