@@ -139,8 +139,15 @@ class KillSummaryWindow(QWidget):
         tb.addWidget(self._title_lbl)
         tb.addStretch()
 
-        web_btn = _icon_btn("🌐")
+        web_btn = QPushButton("zK")
+        web_btn.setFixedSize(20, 20)
+        web_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         web_btn.setToolTip("Open on zKillboard")
+        web_btn.setStyleSheet(
+            "QPushButton { border: none; color: #446688; font-size: 8px; "
+            "font-weight: bold; background: transparent; padding: 0; }"
+            "QPushButton:hover { color: #4fc3f7; }"
+        )
         web_btn.clicked.connect(
             lambda: webbrowser.open(f"https://zkillboard.com/kill/{self._kill_id}/")
         )

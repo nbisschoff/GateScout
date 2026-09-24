@@ -3,12 +3,17 @@ Always-on-top transparent overlay window.
 Drag it anywhere on screen. Double-click the title bar to collapse/expand.
 """
 
+import os
+import sys
+import webbrowser
+
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QTableWidget, QTableWidgetItem, QPushButton, QHeaderView, QSizeGrip
+    QLabel, QTableWidget, QTableWidgetItem, QPushButton, QHeaderView, QSizeGrip,
+    QSystemTrayIcon, QMenu, QMessageBox, QApplication, QScrollArea,
 )
 from PyQt6.QtCore import Qt, QPoint, QTimer, pyqtSignal
-from PyQt6.QtGui import QColor, QFont, QMouseEvent
+from PyQt6.QtGui import QColor, QFont, QMouseEvent, QIcon, QAction
 
 
 DARK_BG = "rgba(15, 15, 20, 210)"
@@ -65,6 +70,8 @@ class Overlay(QMainWindow):
         self._muted           = False
         self._about_window    = None
         self._settings_window = None
+        self._logged_in_name  = ""
+        self._quit_confirmed  = False
 
         import settings_manager
         self._settings = settings_manager.load()
@@ -80,6 +87,7 @@ class Overlay(QMainWindow):
         self._build_ui()
         self.setWindowOpacity(self._settings["opacity"])
         self._update_ready.connect(self.show_update_available)
+        self._setup_tray()
 
     def _build_ui(self):
         root = QWidget()
@@ -136,7 +144,7 @@ class Overlay(QMainWindow):
         tb_layout.addWidget(self._login_btn)
 
         self._logout_btn = QPushButton("Logout")
-        self._logout_btn.clicked.connect(self._on_logout)
+        self._logout_btn.clicked.connect(self._confirm_logout)
         self._logout_btn.hide()
         tb_layout.addWidget(self._logout_btn)
 
@@ -176,13 +184,47 @@ class Overlay(QMainWindow):
         reset_btn.clicked.connect(self._reset_size)
         tb_layout.addWidget(reset_btn)
 
+        min_btn = QPushButton("─")
+        min_btn.setFixedSize(20, 20)
+        min_btn.setStyleSheet(_icon_style.format(c="#666", h="#4fc3f7"))
+        min_btn.setToolTip("Minimise to system tray")
+        min_btn.clicked.connect(self._minimise_to_tray)
+        tb_layout.addWidget(min_btn)
+
         close_btn = QPushButton("✕")
         close_btn.setFixedSize(20, 20)
         close_btn.setStyleSheet(_icon_style.format(c="#666", h="#f44336"))
-        close_btn.clicked.connect(self.close)
+        close_btn.setToolTip("Quit GateScout")
+        close_btn.clicked.connect(self._confirm_quit)
         tb_layout.addWidget(close_btn)
 
         outer.addWidget(title_bar)
+
+        # ── collapsed summary strip ────────────────────────────────
+        self._summary_strip = QWidget()
+        self._summary_strip.setFixedHeight(22)
+        self._summary_strip.setStyleSheet(
+            f"background: {ROW_BG}; border-top: 1px solid {BORDER}; border-radius: 0 0 8px 8px;"
+        )
+        ss = QHBoxLayout(self._summary_strip)
+        ss.setContentsMargins(10, 0, 10, 0)
+        ss.setSpacing(6)
+
+        self._sum_current = QLabel("◉ —")
+        self._sum_current.setStyleSheet(f"color: {ACCENT}; font-size: 10px;")
+        ss.addWidget(self._sum_current)
+
+        _sep = QLabel("│")
+        _sep.setStyleSheet(f"color: {BORDER}; font-size: 10px;")
+        ss.addWidget(_sep)
+
+        self._sum_neighbours = QLabel("—")
+        self._sum_neighbours.setStyleSheet("color: #666; font-size: 10px;")
+        ss.addStretch()
+        ss.addWidget(self._sum_neighbours)
+
+        self._summary_strip.hide()
+        outer.addWidget(self._summary_strip)
 
         # ── body ───────────────────────────────────────────────────
         self._body = QWidget()
@@ -207,15 +249,17 @@ class Overlay(QMainWindow):
         body_layout.addLayout(sys_row)
 
         # neighbour table
-        self._table = QTableWidget(0, 4)
-        self._table.setHorizontalHeaderLabels(["System", "Sec", "Kills/hr", "Jumps/hr"])
-        self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self._table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
+        self._table = QTableWidget(0, 5)
+        self._table.setHorizontalHeaderLabels(["", "System", "Sec", "Kills/hr", "Jumps/hr"])
+        self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        self._table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self._table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
         self._table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
-        self._table.setColumnWidth(1, 45)
-        self._table.setColumnWidth(2, 65)
+        self._table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
+        self._table.setColumnWidth(0, 24)
+        self._table.setColumnWidth(2, 45)
         self._table.setColumnWidth(3, 65)
+        self._table.setColumnWidth(4, 65)
         self._table.verticalHeader().setVisible(False)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
@@ -278,6 +322,7 @@ class Overlay(QMainWindow):
         f.setUnderline(False)
         self._current_label.setFont(f)
         self._current_label.setCursor(Qt.CursorShape.ArrowCursor)
+        self._refresh_summary_strip()
 
     def set_current_kills(self, kills: int):
         self._current_kills_count = kills
@@ -292,11 +337,13 @@ class Overlay(QMainWindow):
         self._current_label.setCursor(
             Qt.CursorShape.PointingHandCursor if kills > 0 else Qt.CursorShape.ArrowCursor
         )
+        self._refresh_summary_strip()
 
     def set_status(self, text: str):
         self._status_label.setText(text)
 
     def set_logged_in(self, name: str):
+        self._logged_in_name = name
         self._login_btn.hide()
         self._logout_btn.show()
         self._logout_btn.setText(f"↩ {name}")
@@ -317,11 +364,34 @@ class Overlay(QMainWindow):
         self._row_data = rows   # keep for click lookup
         self._table.setRowCount(len(rows))
         for i, row in enumerate(rows):
-            kills = row["ship_kills"]
-            jumps = row["jumps"]
-            sec   = row.get("security", 0.0)
+            kills     = row["ship_kills"]
+            jumps     = row["jumps"]
+            sec       = row.get("security", 0.0)
             has_kills = kills > 0
+            system_id = row["system_id"]
 
+            # col 0 — zKillboard link button
+            zk_btn = QPushButton("zK")
+            zk_btn.setFixedSize(20, 16)
+            zk_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            zk_btn.setToolTip(f"Open {row['name']} on zKillboard")
+            zk_btn.setStyleSheet(
+                "QPushButton { border: none; color: #446688; font-size: 8px; "
+                "font-weight: bold; background: transparent; padding: 0; }"
+                "QPushButton:hover { color: #4fc3f7; }"
+            )
+            zk_btn.clicked.connect(
+                lambda _checked, sid=system_id:
+                    webbrowser.open(f"https://zkillboard.com/system/{sid}/")
+            )
+            cell_wrap = QWidget()
+            cell_wrap.setStyleSheet("background: transparent;")
+            cl = QHBoxLayout(cell_wrap)
+            cl.setContentsMargins(2, 0, 2, 0)
+            cl.addWidget(zk_btn)
+            self._table.setCellWidget(i, 0, cell_wrap)
+
+            # col 1 — system name
             name_item  = QTableWidgetItem(row["name"])
             sec_item   = QTableWidgetItem(f"{sec:.1f}")
             kills_item = QTableWidgetItem(str(kills))
@@ -344,15 +414,17 @@ class Overlay(QMainWindow):
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             name_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
 
-            self._table.setItem(i, 0, name_item)
-            self._table.setItem(i, 1, sec_item)
-            self._table.setItem(i, 2, kills_item)
-            self._table.setItem(i, 3, jumps_item)
+            self._table.setItem(i, 1, name_item)
+            self._table.setItem(i, 2, sec_item)
+            self._table.setItem(i, 3, kills_item)
+            self._table.setItem(i, 4, jumps_item)
 
-        # resize window to fit rows (min 180, max 420)
-        row_h = self._table.rowHeight(0) if rows else 24
-        new_h = min(420, max(180, 110 + len(rows) * row_h))
-        self.resize(340, new_h)
+        # resize window to fit rows (min 180, max 420) — skip if collapsed
+        if not self._collapsed:
+            row_h = self._table.rowHeight(0) if rows else 24
+            new_h = min(420, max(180, 110 + len(rows) * row_h))
+            self.resize(340, new_h)
+        self._refresh_summary_strip()
 
     def _on_current_system_clicked(self):
         if self._current_kills_count > 0 and self._current_system_id:
@@ -362,7 +434,9 @@ class Overlay(QMainWindow):
                 self._current_kills_count,
             )
 
-    def _on_row_clicked(self, row_index: int, _col: int):
+    def _on_row_clicked(self, row_index: int, col: int):
+        if col == 0:   # zK button column — handled by the button itself
+            return
         if not hasattr(self, "_row_data") or row_index >= len(self._row_data):
             return
         row = self._row_data[row_index]
@@ -403,6 +477,9 @@ class Overlay(QMainWindow):
             )
 
     def _reset_size(self):
+        if self._collapsed:
+            self.resize(340, 54)
+            return
         rows = getattr(self, "_row_data", [])
         row_h = self._table.rowHeight(0) if rows else 24
         h = min(420, max(180, 110 + len(rows) * row_h)) if rows else 180
@@ -463,18 +540,112 @@ class Overlay(QMainWindow):
         self._help_window = _HelpWindow(self.pos())
         self._help_window.show()
 
+    def _setup_tray(self):
+        base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.dirname(__file__)))
+        icon_path = os.path.join(base, "assets", "icon.ico")
+        icon = QIcon(icon_path) if os.path.exists(icon_path) else QIcon()
+
+        self._tray = QSystemTrayIcon(icon, self)
+        self._tray.setToolTip("GateScout")
+
+        menu = QMenu()
+        restore_action = QAction("Restore GateScout", self)
+        restore_action.triggered.connect(self._restore_from_tray)
+        menu.addAction(restore_action)
+        menu.addSeparator()
+        quit_action = QAction("Quit", self)
+        quit_action.triggered.connect(self._confirm_quit)
+        menu.addAction(quit_action)
+
+        self._tray.setContextMenu(menu)
+        self._tray.activated.connect(self._on_tray_activated)
+        self._tray.show()
+
+    def _minimise_to_tray(self):
+        self.hide()
+        self._tray.showMessage(
+            "GateScout",
+            "Running in the background. Double-click to restore.",
+            QSystemTrayIcon.MessageIcon.Information,
+            2000,
+        )
+
+    def _restore_from_tray(self):
+        self.show()
+        self.raise_()
+        self.activateWindow()
+
+    def _on_tray_activated(self, reason):
+        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
+            self._restore_from_tray()
+
+    def _confirm_quit(self):
+        reply = QMessageBox.question(
+            self,
+            "Quit GateScout",
+            "Are you sure you want to quit GateScout?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self._quit_confirmed = True
+            QApplication.instance().quit()
+
+    def _confirm_logout(self):
+        name = self._logged_in_name or "your character"
+        reply = QMessageBox.question(
+            self,
+            "Log Out",
+            f"Log out as {name}?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self._on_logout()
+
     def closeEvent(self, event):
-        from PyQt6.QtWidgets import QApplication
-        QApplication.instance().quit()
-        event.accept()
+        if self._quit_confirmed:
+            event.accept()
+        else:
+            event.ignore()
+            self._minimise_to_tray()
+
+    def _refresh_summary_strip(self):
+        if not self._collapsed:
+            return
+        name  = self._current_system_name or "Not logged in"
+        kills = self._current_kills_count
+        c_color = _kill_color(kills) if kills > 0 else ACCENT
+        kill_str = f"· {kills} kill{'s' if kills != 1 else ''}" if kills > 0 else "· 0 kills"
+        self._sum_current.setText(f"◉ {name}  {kill_str}")
+        self._sum_current.setStyleSheet(f"color: {c_color}; font-size: 10px; background: transparent;")
+
+        rows = getattr(self, "_row_data", [])
+        if not rows:
+            self._sum_neighbours.setText("no data")
+            self._sum_neighbours.setStyleSheet("color: #666; font-size: 10px; background: transparent;")
+            return
+        total_n  = len(rows)
+        total_k  = sum(r["ship_kills"] for r in rows)
+        active   = sum(1 for r in rows if r["ship_kills"] > 0)
+        n_color  = _kill_color(total_k) if total_k > 0 else "#4caf50"
+        self._sum_neighbours.setText(
+            f"{total_n} neighbours  ·  {total_k} kills  ·  {active} active"
+        )
+        self._sum_neighbours.setStyleSheet(f"color: {n_color}; font-size: 10px; background: transparent;")
 
     def _toggle_collapse(self, _event=None):
         self._collapsed = not self._collapsed
         self._body.setVisible(not self._collapsed)
+        self._summary_strip.setVisible(self._collapsed)
         if self._collapsed:
-            self.resize(self.width(), 32)
+            self._refresh_summary_strip()
+            self.resize(self.width(), 54)   # 30 title + 22 strip + 2 border
         else:
-            self.adjustSize()
+            rows = getattr(self, "_row_data", [])
+            row_h = self._table.rowHeight(0) if rows else 24
+            new_h = min(420, max(180, 110 + len(rows) * row_h))
+            self.resize(self.width(), new_h)
 
 
 class _AboutWindow(QWidget):
@@ -548,7 +719,7 @@ class _AboutWindow(QWidget):
 
 <hr/>
 
-<p>Real-time situational awareness for EVE Online.<br/>
+<p>Situational awareness for EVE Online.<br/>
 Monitors kills and jump traffic in neighbouring systems<br/>
 so you know what's waiting on the other side of the gate.</p>
 
@@ -589,9 +760,21 @@ class _HelpWindow(QWidget):
             Qt.WindowType.Tool
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self._build_ui()  # sets size via adjustSize() — position after
+        self._build_ui()
+
+        # Size to available screen space, open full if it fits
         from ui.utils import smart_pos
-        self.move(smart_pos(parent_pos, 340, self.width(), self.height(), prefer_left=True))
+        screen  = QApplication.primaryScreen().availableGeometry()
+        ideal_w = 400
+        ideal_h = 740
+        # Probe position at ideal size to find available vertical room
+        probe   = smart_pos(parent_pos, 340, ideal_w, ideal_h, prefer_left=True)
+        avail_h = screen.bottom() - probe.y() - 10
+        final_h = min(ideal_h, max(420, avail_h))
+        # Recalculate position with the true final height
+        pos = smart_pos(parent_pos, 340, ideal_w, final_h, prefer_left=True)
+        self.resize(ideal_w, final_h)
+        self.move(pos)
 
     def _build_ui(self):
         root = QWidget(self)
@@ -628,7 +811,7 @@ class _HelpWindow(QWidget):
         reset_btn.setFixedSize(18, 18)
         reset_btn.setStyleSheet("QPushButton { border: none; color: #666; font-size: 11px; padding: 0; } QPushButton:hover { color: #4fc3f7; }")
         reset_btn.setToolTip("Reset to default size")
-        reset_btn.clicked.connect(self.adjustSize)
+        reset_btn.clicked.connect(self._reset_default)
         tb.addWidget(reset_btn)
 
         close_btn = QPushButton("✕")
@@ -662,6 +845,7 @@ kill summary, same as clicking a neighbour.</p>
 <hr/>
 
 <p><b>NEIGHBOUR TABLE</b> — one row per system reachable in 1 jump.</p>
+<p>&nbsp;&nbsp;<b>zK</b> — opens that system's page on zKillboard in your browser.</p>
 <p>&nbsp;&nbsp;<b>System</b> — <u>Underlined</u> = kills detected.
 Click to open the Kill List for that system.</p>
 <p>&nbsp;&nbsp;<b>Sec</b> — Security status of the system:<br/>
@@ -697,7 +881,7 @@ Shows the full picture of that specific kill:<br/>
 &nbsp;&nbsp;<span class='gd'>■ ISK value</span> lost in the kill<br/>
 &nbsp;&nbsp;<b>★ Final blow</b> — who landed the killing shot and damage done<br/>
 &nbsp;&nbsp;Other attacking corps grouped by pilot count<br/>
-&nbsp;&nbsp;<b>🌐</b> button — opens the full kill on zKillboard in your browser</p>
+&nbsp;&nbsp;<b>zK</b> button — opens the full kill on zKillboard in your browser</p>
 
 <hr/>
 
@@ -720,15 +904,40 @@ is an EVE API limitation, not a bug.</span></p>
 &nbsp;&nbsp;<b>Drag</b> — click and drag anywhere to move a window<br/>
 &nbsp;&nbsp;<b>Resize</b> — drag the bottom-right corner of any window<br/>
 &nbsp;&nbsp;<b>↺</b> — reset window to its default size<br/>
-&nbsp;&nbsp;<b>Double-click title bar</b> — collapse overlay to header only</p>
+&nbsp;&nbsp;<b>Double-click title bar</b> — collapse to a compact summary strip showing your current system kills and total neighbour activity; double-click again to expand<br/>
+&nbsp;&nbsp;<b>─</b> — minimise to system tray; Alt+F4 also sends it to tray<br/>
+&nbsp;&nbsp;<b>✕</b> — prompts to confirm, then quits GateScout completely<br/>
+&nbsp;&nbsp;Double-click the tray icon, or right-click → Restore GateScout, to bring the overlay back</p>
 """)
-        layout.addWidget(body)
-        self.adjustSize()
+        body.setContentsMargins(14, 10, 14, 14)
+
+        scroll = QScrollArea()
+        scroll.setWidget(body)
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setStyleSheet("""
+            QScrollArea { background: transparent; border: none; }
+            QScrollBar:vertical {
+                background: #0f0f14; width: 6px; border-radius: 3px; margin: 0;
+            }
+            QScrollBar::handle:vertical {
+                background: #2a2a4a; border-radius: 3px; min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover { background: #4fc3f7; }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+        """)
+        layout.addWidget(scroll)
 
         self._grip = QSizeGrip(self)
         self._grip.setFixedSize(14, 14)
         self._grip.setStyleSheet("QSizeGrip { background: transparent; }")
         self._grip.raise_()
+
+    def _reset_default(self):
+        screen  = QApplication.primaryScreen().availableGeometry()
+        avail_h = screen.bottom() - self.y() - 10
+        self.resize(400, min(740, max(420, avail_h)))
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

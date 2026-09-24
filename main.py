@@ -27,12 +27,12 @@ from config import LOCATION_POLL_INTERVAL, KILLS_POLL_INTERVAL
 
 class DataWorker(QObject):
     """Runs ESI polling on a background thread and emits signals to the UI."""
-    location_changed = pyqtSignal(str, int)        # system_name, system_id
-    neighbours_updated = pyqtSignal(list)           # list of row dicts
+    location_changed      = pyqtSignal(str, int)   # system_name, system_id
+    neighbours_updated    = pyqtSignal(list)        # list of row dicts
     current_kills_updated = pyqtSignal(int)         # ship kills in current system
-    alert_triggered = pyqtSignal()                  # new kill detected in neighbour
-    status_updated = pyqtSignal(str)
-    error_occurred = pyqtSignal(str)
+    alert_triggered       = pyqtSignal()            # new kill detected in neighbour
+    status_updated        = pyqtSignal(str)
+    error_occurred        = pyqtSignal(str)
 
     def __init__(self, character_id: int):
         super().__init__()
@@ -98,7 +98,6 @@ class DataWorker(QObject):
             for sid in self._neighbour_ids
         ]
 
-        # Sound alert if any neighbour has more kills than last check
         for sid in self._neighbour_ids:
             new_k = stats[sid]["ship_kills"]
             if new_k > self._prev_kills.get(sid, 0):
@@ -115,7 +114,6 @@ class DataWorker(QObject):
 
 def _check_for_update(overlay):
     """Background thread: compares current version against latest GitHub release."""
-    import threading
     def _run():
         try:
             import requests
@@ -166,7 +164,6 @@ class GateScout:
         self._overlay.show()
         _check_for_update(self._overlay)
 
-        # Auto-login if we have saved tokens
         char_id, char_name = get_saved_character()
         if char_id:
             self._start_worker(char_id, char_name)

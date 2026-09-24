@@ -21,11 +21,16 @@ When you're flying through New Eden, the biggest risk is what you *don't* know. 
 - **Sound alerts** — an audio beep when new kills appear in a neighbouring system between refreshes
 - **Always on top** — frameless transparent overlay, drag it anywhere on screen
 - **Resizable windows** — every panel can be resized or reset to default
-- **Collapse mode** — double-click the title bar to shrink the overlay to a single bar
+- **Collapse mode** — double-click the title bar to shrink to a compact summary strip showing current system kills and total neighbour activity; double-click again to expand
 
 ---
 
 ## Changelog
+
+### v1.2.0
+- Minimize to system tray — use the `─` button or Alt+F4/close to send GateScout to the tray; double-click the tray icon or right-click → Restore to bring it back
+- Logout confirmation dialog — clicking the character name now asks for confirmation before logging out, preventing accidental logouts
+- zKillboard link — each neighbour row now has a `zK` button that opens that system's zKillboard page in your browser
 
 ### v1.1.0
 - Added 6 selectable MP3 alert sounds with live preview
@@ -44,19 +49,22 @@ When you're flying through New Eden, the biggest risk is what you *don't* know. 
 ## Screenshots
 
 ### Main Overlay
-![Main overlay showing current system and neighbouring systems with kill and jump data](assets/Main%20Screen.png)
+![Main overlay showing current system and neighbouring systems with kill and jump data](assets/1.2.0%20Screenshots/Main%20Interface.png)
+
+### Collapsed Summary View
+![Collapsed overlay showing current system kills and neighbour activity summary](assets/1.2.0%20Screenshots/Collapsed%20Smaller%20Main%20Interface.png)
 
 ### Kill List
-![Kill list popup showing ships destroyed, attacker, time, and gate proximity](assets/System%20Kills.png)
+![Kill list popup showing ships destroyed, attacker, time, and gate proximity](assets/1.2.0%20Screenshots/Kill%20Panel.png)
 
 ### Kill Details
-![Kill detail summary showing victim info, ISK value, final blow, and fleet breakdown](assets/Kill%20Details.png)
+![Kill detail summary showing victim info, ISK value, final blow, and fleet breakdown](assets/1.2.0%20Screenshots/Kill%20Info%20Panel.png)
 
 ### Help
-![Help window with full feature guide](assets/Help%20Screen.png)
+![Help window with full feature guide](assets/1.2.0%20Screenshots/How%20To%20Use%20Panel.png)
 
-### About
-![About window showing version and donation info](assets/About.png)
+### Settings
+![Settings panel showing sound, volume, and transparency options](assets/1.2.0%20Screenshots/Settings%20Panel.png)
 
 ---
 
@@ -84,7 +92,7 @@ When you're flying through New Eden, the biggest risk is what you *don't* know. 
 | ⓘ button | About, version, and donation info |
 | ? button | Full help and feature guide |
 | ↺ button | Reset window to default size |
-| Double-click title bar | Collapse overlay to header only |
+| Double-click title bar | Collapse to summary strip — shows current system kills · neighbour count · total kills · active systems. Double-click again to expand. |
 
 **Kill colours:**
 - 🟢 Green — 0 kills, looks clear
