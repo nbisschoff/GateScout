@@ -184,7 +184,7 @@
     #screenshots { background: var(--bg); }
     .screenshots-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       gap: 1.25rem;
       margin-top: 3rem;
     }
@@ -193,11 +193,13 @@
       overflow: hidden;
       border: 1px solid var(--border);
       background: var(--bg3);
-      transition: transform 0.25s, box-shadow 0.25s;
+      cursor: zoom-in;
+      transition: transform 0.25s, box-shadow 0.25s, border-color 0.25s;
     }
     .screenshot-card:hover {
       transform: translateY(-4px);
       box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+      border-color: rgba(79,195,247,0.4);
     }
     .screenshot-card img { width: 100%; display: block; }
     .screenshot-card span {
@@ -205,6 +207,50 @@
       font-size: 0.8rem; color: var(--dim); letter-spacing: 1px;
       text-transform: uppercase; border-top: 1px solid var(--border);
     }
+
+    /* ── LIGHTBOX ── */
+    #lightbox {
+      display: none;
+      position: fixed; inset: 0; z-index: 999;
+      background: rgba(0, 0, 0, 0.92);
+      backdrop-filter: blur(6px);
+      align-items: center; justify-content: center;
+      flex-direction: column;
+      gap: 1rem;
+      padding: 2rem;
+    }
+    #lightbox.open { display: flex; }
+    #lightbox img {
+      max-width: min(90vw, 960px);
+      max-height: 80vh;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      box-shadow: 0 0 80px rgba(79,195,247,0.12), 0 30px 80px rgba(0,0,0,0.8);
+      object-fit: contain;
+    }
+    #lightbox-caption {
+      font-size: 0.8rem; color: var(--dim);
+      letter-spacing: 2px; text-transform: uppercase;
+    }
+    #lightbox-close {
+      position: fixed; top: 1.25rem; right: 1.5rem;
+      background: none; border: none;
+      color: var(--dim); font-size: 2rem; line-height: 1;
+      cursor: pointer; transition: color 0.2s;
+    }
+    #lightbox-close:hover { color: var(--accent); }
+    #lightbox-nav {
+      display: flex; gap: 1rem;
+    }
+    .lb-arrow {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      color: var(--text); font-size: 1.25rem;
+      width: 42px; height: 42px; border-radius: 50%;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .lb-arrow:hover { background: rgba(79,195,247,0.12); border-color: var(--accent); color: var(--accent); }
 
     /* ── HOW IT WORKS ── */
     #how { background: var(--bg2); }
@@ -391,27 +437,27 @@
     <h2 class="section-title">See it in action.</h2>
   </div>
   <div class="screenshots-grid">
-    <div class="screenshot-card">
+    <div class="screenshot-card" onclick="openLightbox(0)">
       <img src="https://raw.githubusercontent.com/nbisschoff/GateScout/master/assets/1.2.0%20Screenshots/Main%20Interface.png" alt="Main overlay" />
       <span>Main Overlay</span>
     </div>
-    <div class="screenshot-card">
+    <div class="screenshot-card" onclick="openLightbox(1)">
       <img src="https://raw.githubusercontent.com/nbisschoff/GateScout/master/assets/1.2.0%20Screenshots/Collapsed%20Smaller%20Main%20Interface.png" alt="Collapsed summary view" />
       <span>Collapsed Summary View</span>
     </div>
-    <div class="screenshot-card">
+    <div class="screenshot-card" onclick="openLightbox(2)">
       <img src="https://raw.githubusercontent.com/nbisschoff/GateScout/master/assets/1.2.0%20Screenshots/Kill%20Panel.png" alt="Kill list" />
       <span>Kill List</span>
     </div>
-    <div class="screenshot-card">
+    <div class="screenshot-card" onclick="openLightbox(3)">
       <img src="https://raw.githubusercontent.com/nbisschoff/GateScout/master/assets/1.2.0%20Screenshots/Kill%20Info%20Panel.png" alt="Kill details" />
       <span>Kill Details</span>
     </div>
-    <div class="screenshot-card">
+    <div class="screenshot-card" onclick="openLightbox(4)">
       <img src="https://raw.githubusercontent.com/nbisschoff/GateScout/master/assets/1.2.0%20Screenshots/How%20To%20Use%20Panel.png" alt="Help window" />
       <span>Help Guide</span>
     </div>
-    <div class="screenshot-card">
+    <div class="screenshot-card" onclick="openLightbox(5)">
       <img src="https://raw.githubusercontent.com/nbisschoff/GateScout/master/assets/1.2.0%20Screenshots/Settings%20Panel.png" alt="Settings panel" />
       <span>Settings</span>
     </div>
@@ -516,5 +562,59 @@
   </div>
 </footer>
 
+<!-- LIGHTBOX -->
+<div id="lightbox" onclick="closeLightbox(event)">
+  <button id="lightbox-close" onclick="closeLightbox()">&times;</button>
+  <img id="lightbox-img" src="" alt="" />
+  <div id="lightbox-caption"></div>
+  <div id="lightbox-nav">
+    <button class="lb-arrow" onclick="event.stopPropagation(); shiftLightbox(-1)">&#8592;</button>
+    <button class="lb-arrow" onclick="event.stopPropagation(); shiftLightbox(1)">&#8594;</button>
+  </div>
+</div>
+
+<script>
+  const _shots = [
+    { src: "https://raw.githubusercontent.com/nbisschoff/GateScout/master/assets/1.2.0%20Screenshots/Main%20Interface.png",                      cap: "Main Overlay" },
+    { src: "https://raw.githubusercontent.com/nbisschoff/GateScout/master/assets/1.2.0%20Screenshots/Collapsed%20Smaller%20Main%20Interface.png", cap: "Collapsed Summary View" },
+    { src: "https://raw.githubusercontent.com/nbisschoff/GateScout/master/assets/1.2.0%20Screenshots/Kill%20Panel.png",                           cap: "Kill List" },
+    { src: "https://raw.githubusercontent.com/nbisschoff/GateScout/master/assets/1.2.0%20Screenshots/Kill%20Info%20Panel.png",                    cap: "Kill Details" },
+    { src: "https://raw.githubusercontent.com/nbisschoff/GateScout/master/assets/1.2.0%20Screenshots/How%20To%20Use%20Panel.png",                 cap: "Help Guide" },
+    { src: "https://raw.githubusercontent.com/nbisschoff/GateScout/master/assets/1.2.0%20Screenshots/Settings%20Panel.png",                       cap: "Settings" },
+  ];
+  let _cur = 0;
+
+  function openLightbox(i) {
+    _cur = i;
+    _render();
+    document.getElementById("lightbox").classList.add("open");
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeLightbox(e) {
+    if (e && e.target !== document.getElementById("lightbox") && e.target !== document.getElementById("lightbox-close")) return;
+    document.getElementById("lightbox").classList.remove("open");
+    document.body.style.overflow = "";
+  }
+
+  function shiftLightbox(dir) {
+    _cur = (_cur + dir + _shots.length) % _shots.length;
+    _render();
+  }
+
+  function _render() {
+    document.getElementById("lightbox-img").src     = _shots[_cur].src;
+    document.getElementById("lightbox-img").alt     = _shots[_cur].cap;
+    document.getElementById("lightbox-caption").textContent = _shots[_cur].cap;
+  }
+
+  document.addEventListener("keydown", e => {
+    const lb = document.getElementById("lightbox");
+    if (!lb.classList.contains("open")) return;
+    if (e.key === "Escape")      closeLightbox({target: lb});
+    if (e.key === "ArrowLeft")   shiftLightbox(-1);
+    if (e.key === "ArrowRight")  shiftLightbox(1);
+  });
+</script>
 </body>
 </html>
